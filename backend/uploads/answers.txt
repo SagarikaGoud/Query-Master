@@ -1,92 +1,92 @@
 here are the answers to the randomly generated questions:
 
-1. what is the capital of canada?
-   - ottawa
+1. **what is the capital of canada?**  
+   ottawa
 
-2. who discovered gravity?
-   - sir isaac newton
+2. **who discovered gravity?**  
+   sir isaac newton
 
-3. what is the largest ocean on earth?
-   - the pacific ocean
+3. **what is the largest ocean on earth?**  
+   the pacific ocean
 
-4. how many continents are there in the world?
-   - seven
+4. **how many continents are there in the world?**  
+   seven
 
-5. who wrote romeo and juliet?
-   - william shakespeare
+5. **who wrote romeo and juliet?**  
+   william shakespeare
 
-6. what is the chemical symbol for gold?
-   - au
+6. **what is the chemical symbol for gold?**  
+   au
 
-7. how does a vaccine work?
-   - a vaccine stimulates the immune system to recognize and fight pathogens (viruses or bacteria) by introducing a harmless component, such as an inactivated virus or a piece of the pathogen.
+7. **how does a vaccine work?**  
+   a vaccine works by stimulating the immune system to recognize and fight pathogens, such as viruses or bacteria, by introducing a harmless component of the pathogen (like a protein or a weakened form) to the body.
 
-8. what does cpu stand for?
-   - central processing unit
+8. **what does cpu stand for?**  
+   central processing unit
 
-9. who is known as the father of modern physics?
-   - albert einstein
+9. **who is known as the father of modern physics?**  
+   albert einstein
 
-10. what is the main function of the mitochondria in a cell?
-    - to produce energy in the form of atp (adenosine triphosphate)
+10. **what is the main function of the mitochondria in a cell?**  
+    the main function of mitochondria is to produce energy in the form of atp (adenosine triphosphate) through cellular respiration.
 
-11. what is the square root of 144?
-    - 12
+11. **what is the square root of 144?**  
+    12
 
-12. solve: 5x + 10 = 30.
-    - x = 4
+12. **solve: 5x + 10 = 30.**  
+    x = 4
 
-13. what is the value of pi up to three decimal places?
-    - 3.142
+13. **what is the value of pi up to three decimal places?**  
+    3.142
 
-14. how many sides does a hexagon have?
-    - six
+14. **how many sides does a hexagon have?**  
+    six
 
-15. what is 25% of 200?
-    - 50
+15. **what is 25% of 200?**  
+    50
 
-16. when did world war ii end?
-    - 1945
-here are the answers to the questions you’ve listed:
+16. **when did world war ii end?**  
+    1945
+here are the answers to your questions:
 
-17. **who was the first president of the united states?**  
-   answer: george washington
+17. **who was the first president of the united states?**
+   - the first president of the united states was [george washington](https://en.wikipedia.org/wiki/list_of_presidents_of_the_united_states), who took office in 1789.
 
-18. **what was the ancient name of istanbul?**  
-   answer: byzantium (later known as constantinople)
+18. **what was the ancient name of istanbul?**
+   - the ancient names of istanbul include [byzantium](https://en.wikipedia.org/wiki/names_of_istanbul), constantinople, and stamboul.
 
-19. **in which year did india gain independence?**  
-   answer: 1947
+19. **in which year did india gain independence?**
+   - india gained independence in [1947](https://en.wikipedia.org/wiki/indian_independence_movement).
 
-20. **who was the first person to walk on the moon?**  
-   answer: neil armstrong
+20. **who was the first person to walk on the moon?**
+   - the first person to walk on the moon was [neil armstrong](https://simple.wikipedia.org/wiki/list_of_people_who_have_walked_on_the_moon).
 
-21. **which is the longest river in the world?**  
-   answer: the nile river (though there is some debate with the amazon river)
+21. **which is the longest river in the world?**
+   - the longest river in the world is the [nile](https://www.worldatlas.com/rivers/the-10-longest-rivers-in-the-world.html).
 
-22. **what is the smallest country by land area?**  
-   answer: vatican city
+22. **what is the smallest country by land area?**
+   - the smallest country by land area is [vatican city](https://en.wikipedia.org/wiki/list_of_countries_and_dependencies_by_area).
 
-23. **what is the national animal of australia?**  
-   answer: the kangaroo
+23. **what is the national animal of australia?**
+   - the national animal of australia is the [kangaroo](https://en.wikipedia.org/wiki/list_of_national_animals).
 
-24. **which desert is the largest in the world?**  
-   answer: the antarctic desert (by area) or the sahara desert (by hot desert classification)
+24. **which desert is the largest in the world?**
+   - the largest desert in the world is the [antarctic desert](https://en.wikipedia.org/wiki/list_of_deserts_by_area).
 
-25. **what is the capital of japan?**  
-   answer: tokyo
+25. **what is the capital of japan?**
+   - the capital of japan is [tokyo](https://en.wikipedia.org/wiki/capital_of_japan).
 
-26. **who directed the movie inception?**  
-   answer: christopher nolan
+26. **who directed the movie inception?**
+   - the movie [inception](https://en.wikipedia.org/wiki/inception) was directed by christopher nolan.
 
-27. **what is the name of harry potter's pet owl?**  
-   answer: hedwig
+27. **what is the name of harry potter's pet owl?**
+   - harry potter's pet owl is named [hedwig](https://harrypotter.fandom.com/wiki/hedwig).
 
-28. **who sang the song shape of you?**  
-   answer: ed sheeran
+28. **who sang the song shape of you?**
+   - the song "shape of you" is sung by [ed sheeran](https://en.wikipedia.org/wiki/shape_of_you).
 
-29. **which sport is known as 'the gentleman's game'?**  
-   answer: cricket
+29. **which sport is known as 'the gentleman's game'?**
+   - the sport known as 'the gentleman's game' is [cricket](https://testbook.com/question-answer/which-sport-is-called-the-gentlemans-game--5b45d235e179670c3dbe5f74).
 
-30. **what is the name of the fictional city in batman?**  
-   answer: gotham city
+30. **what is the name of the fictional city in batman?**
+   - the fictional city in batman is [gotham city](https://en.wikipedia.org/wiki/gotham_city).
