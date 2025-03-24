@@ -15,7 +15,10 @@ except ImportError:
     from fpdf2 import FPDF as FPDF
 
 app = Flask(__name__, static_folder="../Frontend/dist", static_url_path="")
-CORS(app)
+# Allow only your Render frontend
+CORS(app, resources={
+    r"/process": {"origins": "https://query-master-1.onrender.com"}
+})
 
 # Configuration
 load_dotenv()
@@ -200,8 +203,10 @@ def download_file(filename):
 def serve_static(path):
     return send_from_directory(app.static_folder, path)
 
+# Updated app.run() for Render
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
 
 
 
