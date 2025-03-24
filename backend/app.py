@@ -6,8 +6,11 @@ from docx import Document
 import openpyxl
 import requests
 from dotenv import load_dotenv
-from fpdf import FPDF
 from flask import Flask, send_from_directory
+try:
+    from fpdf import FPDF
+except ImportError:
+    from fpdf2 import FPDF as FPDF
 
 app = Flask(__name__, static_folder="../Frontend/dist", static_url_path="")
 CORS(app)

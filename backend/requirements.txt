@@ -3,6 +3,7 @@ Flask-Cors==4.0.0
 PyPDF2==3.0.1
 python-docx==0.8.11
 openpyxl==3.1.2
+fpdf2==2.7.7  # Replaced fpdf with fpdf2
 requests==2.31.0
 python-dotenv==1.0.1
-gunicorn==20.1.0  # Downgraded for stability
+gunicorn==21.2.0
