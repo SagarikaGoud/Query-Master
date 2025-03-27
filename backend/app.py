@@ -7,6 +7,9 @@ from docx import Document
 import openpyxl
 import requests
 from dotenv import load_dotenv
+# from docx.shared import Pt  
+# from docx.oxml import OxmlElement  
+# from docx.oxml.ns import qn
 
 # PDF library fallback
 try:
@@ -58,6 +61,48 @@ def extract_text_from_file(file_path, file_format):
     except Exception as e:
         raise RuntimeError(f"Failed to extract text: {str(e)}")
 
+# def generate_answers(questions, context):
+#     url = "https://chatgpt-42.p.rapidapi.com/chat"
+#     headers = {
+#         "x-rapidapi-key": os.getenv("RAPIDAPI_KEY"),
+#         "x-rapidapi-host": "chatgpt-42.p.rapidapi.com",
+#         "Content-Type": "application/json"
+#     }
+
+#     answers = []
+#     batch_size = 10  # Reduced for reliability
+#     unwanted_phrases = [
+#         "if you have more questions",
+#         "feel free to ask",
+#         "let me know if you need"
+#     ]
+
+#     for i in range(0, len(questions), batch_size):
+#         try:
+#             batch = questions[i:i + batch_size]
+#             payload = {
+#                 "messages": [{
+#                     "role": "user",
+#                     "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
+#                 }],
+#                 "model": "gpt-4o-mini",
+#                 "max_tokens": 1000
+#             }
+            
+#             response = requests.post(url, json=payload, headers=headers, timeout=30)
+#             response.raise_for_status()
+            
+#             answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+#             for phrase in unwanted_phrases:
+#                 answer = answer.lower().replace(phrase, "").strip()
+            
+#             answers.extend(filter(None, answer.split("\n")))
+            
+#         except Exception as e:
+#             raise RuntimeError(f"API request failed: {str(e)}")
+
+#     return answers or ["No answers generated"]
+
 def generate_answers(questions, context):
     url = "https://chatgpt-42.p.rapidapi.com/chat"
     headers = {
@@ -67,36 +112,42 @@ def generate_answers(questions, context):
     }
 
     answers = []
-    batch_size = 10  # Reduced for reliability
-    unwanted_phrases = [
-        "if you have more questions",
-        "feel free to ask",
-        "let me know if you need"
-    ]
+    batch_size = 5  # Reduced further for reliability
+    max_retries = 3
+    retry_delay = 2  # seconds
 
     for i in range(0, len(questions), batch_size):
-        try:
-            batch = questions[i:i + batch_size]
-            payload = {
-                "messages": [{
-                    "role": "user",
-                    "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
-                }],
-                "model": "gpt-4o-mini",
-                "max_tokens": 1000
-            }
-            
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-            for phrase in unwanted_phrases:
-                answer = answer.lower().replace(phrase, "").strip()
-            
-            answers.extend(filter(None, answer.split("\n")))
-            
-        except Exception as e:
-            raise RuntimeError(f"API request failed: {str(e)}")
+        batch = questions[i:i + batch_size]
+        for attempt in range(max_retries):
+            try:
+                payload = {
+                    "messages": [{
+                        "role": "user",
+                        "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
+                    }],
+                    "model": "gpt-4",
+                    "max_tokens": 1000,
+                    "temperature": 0.7
+                }
+                
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                
+                # Check for rate limiting or server errors
+                if response.status_code == 429:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                    
+                response.raise_for_status()
+                
+                answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                answers.extend(answer.split("\n"))
+                break
+                
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    app.logger.error(f"API request failed after {max_retries} attempts: {str(e)}")
+                    answers.extend([f"Error answering question: {q[:50]}..." for q in batch])
+                continue
 
     return answers or ["No answers generated"]
 
@@ -130,12 +181,21 @@ def save_answers(answers, format):
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
+            
+            # Add title
             pdf.cell(200, 10, txt="Generated Answers", ln=True, align="C")
             pdf.ln(10)
             
+            # Handle text encoding and long answers
             for answer in answers:
-                pdf.multi_cell(0, 10, txt=answer)
-                pdf.ln(5)
+                try:
+                    # Encode to Latin-1 if UTF-8 fails, replace problematic characters
+                    answer = answer.encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(0, 10, txt=answer)
+                    pdf.ln(5)
+                except Exception as e:
+                    app.logger.error(f"Error processing answer for PDF: {str(e)}")
+                    continue
                 
             pdf.output(file_path)
             
@@ -143,6 +203,52 @@ def save_answers(answers, format):
         
     except Exception as e:
         raise RuntimeError(f"Failed to save {format}: {str(e)}")
+# def save_answers(answers, format):
+#     try:
+#         if not answers:
+#             raise ValueError("No answers to save")
+            
+#         if format == "txt":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.txt")
+#             with open(file_path, "w", encoding='utf-8') as f:
+#                 f.write("\n".join(answers))
+                
+#         elif format == "docx":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.docx")
+#             doc = Document()
+#             for answer in answers:
+#                 doc.add_paragraph(answer)
+#             doc.save(file_path)
+  
+
+            
+#         elif format == "xls":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.xlsx")
+#             wb = openpyxl.Workbook()
+#             ws = wb.active
+#             for i, answer in enumerate(answers):
+#                 ws.cell(row=i+1, column=1, value=answer)
+#             wb.save(file_path)
+            
+#         elif format == "pdf":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.pdf")
+#             pdf = FPDF()
+#             pdf.add_page()
+#             pdf.set_font("Arial", size=12)
+#             pdf.cell(200, 10, txt="Generated Answers", ln=True, align="C")
+#             pdf.ln(10)
+            
+#             for answer in answers:
+#                 pdf.multi_cell(0, 10, txt=answer)
+#                 pdf.ln(5)
+                
+#             pdf.output(file_path)
+            
+#         return file_path
+        
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to save {format}: {str(e)}")
+
 
 @app.route("/process", methods=["POST"])
 def process_file():
@@ -165,6 +271,10 @@ def process_file():
         input_format = request.form.get("input_format", "pdf")
         output_format = request.form.get("output_format", "txt")
         
+        # Ensure upload directory exists
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(file_path)
         
@@ -179,15 +289,61 @@ def process_file():
         
         return jsonify({
             "success": True,
-            "download_link": f"/download/{os.path.basename(result_file)}"
+            "download_link": f"/download/{os.path.basename(result_file)}",
+            "file_type": output_format
         })
         
     except Exception as e:
         app.logger.error(f"Processing error: {str(e)}\n{traceback.format_exc()}")
         return jsonify({
             "error": "File processing failed",
-            "details": str(e)
+            "details": str(e),
+            "stack_trace": traceback.format_exc() if app.debug else None
         }), 500
+# @app.route("/process", methods=["POST"])
+# def process_file():
+#     try:
+#         # Validate request
+#         if 'file' not in request.files:
+#             return jsonify({"error": "No file part"}), 400
+            
+#         file = request.files['file']
+#         if file.filename == '':
+#             return jsonify({"error": "No selected file"}), 400
+            
+#         if not allowed_file(file.filename):
+#             return jsonify({
+#                 "error": "Invalid file type",
+#                 "allowed": list(app.config['ALLOWED_EXTENSIONS'])
+#             }), 400
+
+#         # Process file
+#         input_format = request.form.get("input_format", "pdf")
+#         output_format = request.form.get("output_format", "txt")
+        
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+#         file.save(file_path)
+        
+#         text = extract_text_from_file(file_path, input_format)
+#         questions = [f"{q.strip()}?" for q in text.split("?") if q.strip()]
+        
+#         if not questions:
+#             return jsonify({"error": "No questions detected"}), 400
+            
+#         answers = generate_answers(questions, text)
+#         result_file = save_answers(answers, output_format)
+        
+#         return jsonify({
+#             "success": True,
+#             "download_link": f"/download/{os.path.basename(result_file)}"
+#         })
+        
+#     except Exception as e:
+#         app.logger.error(f"Processing error: {str(e)}\n{traceback.format_exc()}")
+#         return jsonify({
+#             "error": "File processing failed",
+#             "details": str(e)
+#         }), 500
 
 @app.route("/download/<filename>", methods=["GET"])
 def download_file(filename):
