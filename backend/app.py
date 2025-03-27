@@ -7,9 +7,7 @@ from docx import Document
 import openpyxl
 import requests
 from dotenv import load_dotenv
-# from docx.shared import Pt  
-# from docx.oxml import OxmlElement  
-# from docx.oxml.ns import qn
+import time  # Added for retries
 
 # PDF library fallback
 try:
@@ -19,9 +17,7 @@ except ImportError:
 
 app = Flask(__name__, static_folder="../Frontend/dist", static_url_path="")
 # Allow only your Render frontend
-CORS(app, resources={
-    r"/process": {"origins": "https://query-master-1.onrender.com"}
-})
+CORS(app, resources={r"/process": {"origins": "https://query-master-1.onrender.com"}})
 
 # Configuration
 load_dotenv()
@@ -34,8 +30,7 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o777)
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 @app.route("/")
 def serve_react():
@@ -46,18 +41,17 @@ def extract_text_from_file(file_path, file_format):
         if file_format == "pdf":
             with open(file_path, "rb") as file:
                 reader = PyPDF2.PdfReader(file)
-                text = ""
-                for page in reader.pages:
-                    text += page.extract_text() or ""  # Handle None returns
+                text = "\n".join([page.extract_text() or "" for page in reader.pages]).strip()
         elif file_format == "docx":
             doc = Document(file_path)
-            text = "\n".join([para.text for para in doc.paragraphs if para.text])
+            text = "\n".join([para.text for para in doc.paragraphs if para.text]).strip()
         elif file_format == "txt":
             with open(file_path, "r", encoding='utf-8') as file:
-                text = file.read()
+                text = file.read().strip()
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
-        return text.strip() or "No extractable text found"
+
+        return text or "No extractable text found"
     except Exception as e:
         raise RuntimeError(f"Failed to extract text: {str(e)}")
 
@@ -71,132 +65,118 @@ def generate_answers(questions, context):
 
     answers = []
     batch_size = 10  # Reduced for reliability
-    unwanted_phrases = [
-        "if you have more questions",
-        "feel free to ask",
-        "let me know if you need"
-    ]
+    unwanted_phrases = ["if you have more questions", "feel free to ask", "let me know if you need"]
+    max_retries = 3
 
     for i in range(0, len(questions), batch_size):
-        try:
-            batch = questions[i:i + batch_size]
-            payload = {
-                "messages": [{
-                    "role": "user",
-                    "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
-                }],
-                "model": "gpt-4o-mini",
-                "max_tokens": 1000
-            }
-            
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
-            for phrase in unwanted_phrases:
-                answer = answer.lower().replace(phrase, "").strip()
-            
-            answers.extend(filter(None, answer.split("\n")))
-            
-        except Exception as e:
-            raise RuntimeError(f"API request failed: {str(e)}")
+        batch = questions[i:i + batch_size]
+        payload = {
+            "messages": [{
+                "role": "user",
+                "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
+            }],
+            "model": "gpt-4o-mini",
+            "max_tokens": 1000
+        }
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                response.raise_for_status()
+                answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                for phrase in unwanted_phrases:
+                    answer = answer.lower().replace(phrase, "").strip()
+
+                answers.extend(filter(None, answer.split("\n")))
+                break  # Successful request, break retry loop
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(2)  # Small delay before retry
+                else:
+                    raise RuntimeError(f"API request failed after retries: {str(e)}")
 
     return answers or ["No answers generated"]
 
-
-
-def save_answers(answers, format):
+def save_answers(answers, file_format):
     try:
         if not answers:
             raise ValueError("No answers to save")
-            
-        if format == "txt":
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.txt")
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"answers.{file_format}")
+
+        if file_format == "txt":
             with open(file_path, "w", encoding='utf-8') as f:
                 f.write("\n".join(answers))
-                
-        elif format == "docx":
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.docx")
+
+        elif file_format == "docx":
             doc = Document()
             for answer in answers:
                 doc.add_paragraph(answer)
             doc.save(file_path)
-  
 
-            
-        elif format == "xls":
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.xlsx")
+        elif file_format == "xlsx":
             wb = openpyxl.Workbook()
             ws = wb.active
             for i, answer in enumerate(answers):
                 ws.cell(row=i+1, column=1, value=answer)
             wb.save(file_path)
-            
-        elif format == "pdf":
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.pdf")
+
+        elif file_format == "pdf":
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
             pdf.cell(200, 10, txt="Generated Answers", ln=True, align="C")
             pdf.ln(10)
-            
             for answer in answers:
                 pdf.multi_cell(0, 10, txt=answer)
                 pdf.ln(5)
-                
             pdf.output(file_path)
-            
+
         return file_path
-        
     except Exception as e:
-        raise RuntimeError(f"Failed to save {format}: {str(e)}")
-
-
+        raise RuntimeError(f"Failed to save {file_format}: {str(e)}")
 
 @app.route("/process", methods=["POST"])
 def process_file():
     try:
-        # Validate request
         if 'file' not in request.files:
             return jsonify({"error": "No file part"}), 400
-            
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
-            
-        if not allowed_file(file.filename):
-            return jsonify({
-                "error": "Invalid file type",
-                "allowed": list(app.config['ALLOWED_EXTENSIONS'])
-            }), 400
 
-        # Process file
+        if not allowed_file(file.filename):
+            return jsonify({"error": "Invalid file type", "allowed": list(app.config['ALLOWED_EXTENSIONS'])}), 400
+
+        # Ensure the upload folder exists before saving
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o777)
+
         input_format = request.form.get("input_format", "pdf")
         output_format = request.form.get("output_format", "txt")
-        
+
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(file_path)
-        
+
         text = extract_text_from_file(file_path, input_format)
-        questions = [f"{q.strip()}?" for q in text.split("?") if q.strip()]
-        
+        questions = [q.strip() + "?" for q in text.replace("\n", " ").split("?") if q.strip()]
+
         if not questions:
+            os.remove(file_path)  # Cleanup
             return jsonify({"error": "No questions detected"}), 400
-            
+
         answers = generate_answers(questions, text)
         result_file = save_answers(answers, output_format)
-        
-        return jsonify({
-            "success": True,
-            "download_link": f"/download/{os.path.basename(result_file)}"
-        })
-        
+
+        os.remove(file_path)  # Cleanup after processing
+
+        return jsonify({"success": True, "download_link": f"/download/{os.path.basename(result_file)}"})
+
     except Exception as e:
         app.logger.error(f"Processing error: {str(e)}\n{traceback.format_exc()}")
-        return jsonify({
-            "error": "File processing failed",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "File processing failed", "details": str(e)}), 500
 
 @app.route("/download/<filename>", methods=["GET"])
 def download_file(filename):
@@ -212,10 +192,230 @@ def download_file(filename):
 def serve_static(path):
     return send_from_directory(app.static_folder, path)
 
-# Updated app.run() for Render
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
+
+# import os
+# import traceback
+# import PyPDF2
+# from flask import Flask, request, jsonify, send_file, send_from_directory
+# from flask_cors import CORS
+# from docx import Document
+# import openpyxl
+# import requests
+# from dotenv import load_dotenv
+# # from docx.shared import Pt  
+# # from docx.oxml import OxmlElement  
+# # from docx.oxml.ns import qn
+
+# # PDF library fallback
+# try:
+#     from fpdf import FPDF
+# except ImportError:
+#     from fpdf2 import FPDF as FPDF
+
+# app = Flask(__name__, static_folder="../Frontend/dist", static_url_path="")
+# # Allow only your Render frontend
+# CORS(app, resources={
+#     r"/process": {"origins": "https://query-master-1.onrender.com"}
+# })
+
+# # Configuration
+# load_dotenv()
+# app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB file limit
+# app.config['UPLOAD_FOLDER'] = 'uploads'
+# app.config['ALLOWED_EXTENSIONS'] = {'pdf', 'docx', 'txt'}
+
+# # Ensure upload directory exists with proper permissions
+# if not os.path.exists(app.config['UPLOAD_FOLDER']):
+#     os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o777)
+
+# def allowed_file(filename):
+#     return '.' in filename and \
+#            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# @app.route("/")
+# def serve_react():
+#     return send_from_directory(app.static_folder, "index.html")
+
+# def extract_text_from_file(file_path, file_format):
+#     try:
+#         if file_format == "pdf":
+#             with open(file_path, "rb") as file:
+#                 reader = PyPDF2.PdfReader(file)
+#                 text = ""
+#                 for page in reader.pages:
+#                     text += page.extract_text() or ""  # Handle None returns
+#         elif file_format == "docx":
+#             doc = Document(file_path)
+#             text = "\n".join([para.text for para in doc.paragraphs if para.text])
+#         elif file_format == "txt":
+#             with open(file_path, "r", encoding='utf-8') as file:
+#                 text = file.read()
+#         else:
+#             raise ValueError(f"Unsupported file format: {file_format}")
+#         return text.strip() or "No extractable text found"
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to extract text: {str(e)}")
+
+# def generate_answers(questions, context):
+#     url = "https://chatgpt-42.p.rapidapi.com/chat"
+#     headers = {
+#         "x-rapidapi-key": os.getenv("RAPIDAPI_KEY"),
+#         "x-rapidapi-host": "chatgpt-42.p.rapidapi.com",
+#         "Content-Type": "application/json"
+#     }
+
+#     answers = []
+#     batch_size = 10  # Reduced for reliability
+#     unwanted_phrases = [
+#         "if you have more questions",
+#         "feel free to ask",
+#         "let me know if you need"
+#     ]
+
+#     for i in range(0, len(questions), batch_size):
+#         try:
+#             batch = questions[i:i + batch_size]
+#             payload = {
+#                 "messages": [{
+#                     "role": "user",
+#                     "content": f"Context: {context}\n\nQuestions:\n" + "\n".join(batch)
+#                 }],
+#                 "model": "gpt-4o-mini",
+#                 "max_tokens": 1000
+#             }
+            
+#             response = requests.post(url, json=payload, headers=headers, timeout=30)
+#             response.raise_for_status()
+            
+#             answer = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+#             for phrase in unwanted_phrases:
+#                 answer = answer.lower().replace(phrase, "").strip()
+            
+#             answers.extend(filter(None, answer.split("\n")))
+            
+#         except Exception as e:
+#             raise RuntimeError(f"API request failed: {str(e)}")
+
+#     return answers or ["No answers generated"]
+
+
+
+# def save_answers(answers, format):
+#     try:
+#         if not answers:
+#             raise ValueError("No answers to save")
+            
+#         if format == "txt":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.txt")
+#             with open(file_path, "w", encoding='utf-8') as f:
+#                 f.write("\n".join(answers))
+                
+#         elif format == "docx":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.docx")
+#             doc = Document()
+#             for answer in answers:
+#                 doc.add_paragraph(answer)
+#             doc.save(file_path)
+  
+
+            
+#         elif format == "xls":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.xlsx")
+#             wb = openpyxl.Workbook()
+#             ws = wb.active
+#             for i, answer in enumerate(answers):
+#                 ws.cell(row=i+1, column=1, value=answer)
+#             wb.save(file_path)
+            
+#         elif format == "pdf":
+#             file_path = os.path.join(app.config['UPLOAD_FOLDER'], "answers.pdf")
+#             pdf = FPDF()
+#             pdf.add_page()
+#             pdf.set_font("Arial", size=12)
+#             pdf.cell(200, 10, txt="Generated Answers", ln=True, align="C")
+#             pdf.ln(10)
+            
+#             for answer in answers:
+#                 pdf.multi_cell(0, 10, txt=answer)
+#                 pdf.ln(5)
+                
+#             pdf.output(file_path)
+            
+#         return file_path
+        
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to save {format}: {str(e)}")
+
+
+
+# @app.route("/process", methods=["POST"])
+# def process_file():
+#     try:
+#         # Validate request
+#         if 'file' not in request.files:
+#             return jsonify({"error": "No file part"}), 400
+            
+#         file = request.files['file']
+#         if file.filename == '':
+#             return jsonify({"error": "No selected file"}), 400
+            
+#         if not allowed_file(file.filename):
+#             return jsonify({
+#                 "error": "Invalid file type",
+#                 "allowed": list(app.config['ALLOWED_EXTENSIONS'])
+#             }), 400
+
+#         # Process file
+#         input_format = request.form.get("input_format", "pdf")
+#         output_format = request.form.get("output_format", "txt")
+        
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+#         file.save(file_path)
+        
+#         text = extract_text_from_file(file_path, input_format)
+#         questions = [f"{q.strip()}?" for q in text.split("?") if q.strip()]
+        
+#         if not questions:
+#             return jsonify({"error": "No questions detected"}), 400
+            
+#         answers = generate_answers(questions, text)
+#         result_file = save_answers(answers, output_format)
+        
+#         return jsonify({
+#             "success": True,
+#             "download_link": f"/download/{os.path.basename(result_file)}"
+#         })
+        
+#     except Exception as e:
+#         app.logger.error(f"Processing error: {str(e)}\n{traceback.format_exc()}")
+#         return jsonify({
+#             "error": "File processing failed",
+#             "details": str(e)
+#         }), 500
+
+# @app.route("/download/<filename>", methods=["GET"])
+# def download_file(filename):
+#     try:
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#         if not os.path.exists(file_path):
+#             return jsonify({"error": "File not found"}), 404
+#         return send_file(file_path, as_attachment=True)
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+# @app.route("/<path:path>")
+# def serve_static(path):
+#     return send_from_directory(app.static_folder, path)
+
+# # Updated app.run() for Render
+# if __name__ == "__main__":
+#     port = int(os.environ.get("PORT", 5000))
+#     app.run(host="0.0.0.0", port=port, debug=False)
 
 
 
